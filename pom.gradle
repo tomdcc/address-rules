@@ -1,0 +1,79 @@
+apply plugin: "base"
+apply plugin: "maven"
+apply plugin: "signing"
+
+ext {
+	ext.poms = []
+	afterEvaluate {
+		poms*.whenConfigured { pom ->
+			pomModifications.each {
+				configure(pom, it)
+			}
+		}
+	}
+	pomModifications = []
+	modifyPom = { pomModifications << it }
+
+	isSnapshot = version.endsWith("-SNAPSHOT")
+}
+
+tasks.withType(Upload) {
+	repositories.withType(org.gradle.api.artifacts.maven.MavenResolver) {
+		poms << it.pom
+	}
+}
+
+modifyPom {
+	project {
+		name "Address JVM Rules"
+		description "Rules for validating different countries, fetched from http://i18napis.appspot.com/address."
+		url "https://github.com/tomdcc/address-rules/"
+		inceptionYear "2013"
+		licenses {
+			license {
+				name 'The Apache Software License, Version 2.0'
+				url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+				distribution 'repo'
+			}
+		}
+		scm {
+			url "https://github.com/tomdcc/address-rules/"
+		}
+		developers {
+			developer {
+				id "tomdcc"
+				name "Tom Dunstan"
+			}
+		}
+	}
+}
+
+
+uploadArchives { task ->
+	repositories.mavenDeployer {
+		if(!isSnapshot) {
+			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+		}
+		uniqueVersion = false
+		gradle.taskGraph.whenReady { taskGraph ->
+			if (taskGraph.hasTask(task)) {
+				repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+					authentication(userName: sonatypeOssUsername, password: sonatypeOssPassword)
+				}
+				snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+					authentication(userName: sonatypeOssUsername, password: sonatypeOssPassword)
+				}
+			}
+		}
+	}
+}
+
+task uploadSnapshots << {
+	if(!isSnapshot) {
+		println "Not uploading snapshot as not a snapshot version"
+	}
+}
+
+if(isSnapshot) {
+	uploadSnapshots.dependsOn(uploadArchives)
+}

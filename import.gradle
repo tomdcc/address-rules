@@ -1,0 +1,72 @@
+buildscript {
+	repositories {
+		mavenLocal()
+		mavenCentral()
+	}
+	dependencies {
+		classpath 'org.codehaus.groovy.modules.http-builder:http-builder:0.6'
+	}
+}
+
+String basePath = 'http://i18napis.appspot.com/address/'
+def rulesBaseDir = new File(sourceSets.main.resources.srcDirs.asList()[0], 'io/jdev/address/rules')
+
+def saveJsonAsProperties = {path, json ->
+	Properties props = new Properties()
+	props.putAll(json)
+
+	def fileBase = !path ? 'index' : (path.contains('/') ? path : "$path/index")
+	def file = new File(rulesBaseDir, "${fileBase}.properties")
+	file.parentFile.mkdirs()
+	FileOutputStream os = new FileOutputStream(file)
+	try {
+		props.store(os, null)
+	} finally {
+		os.close()
+	}
+
+}
+
+def process = [
+		top: { json, queue ->
+			json.countries.split("~").each { code ->
+				queue << [type: 'country', path: code]
+			}
+		},
+
+		country: { json, queue ->
+			// don't do any other processing of sub-country stuff for now
+		}
+]
+
+task deleteRules(type: Delete) {
+	delete rulesBaseDir
+}
+
+task importRules << {
+	println "Importing rules from $basePath"
+
+	def queue = new LinkedList()
+	def restClient = new groovyx.net.http.RESTClient(basePath)
+	def jsonSlurper = new groovy.json.JsonSlurper()
+
+	queue << [type: 'top', path: null]
+	queue << [type: 'country', path: 'ZZ']
+	while(!queue.empty) {
+		def res = queue.remove()
+		println " fetching ${res.path ?: 'root'}"
+		def result = restClient.get(path: res.path ? "data/$res.path": 'data')
+		assert result.status == 200
+		String data = result.data.text
+
+		// write locally
+		def json = jsonSlurper.parseText(data)
+		saveJsonAsProperties(res.path, json)
+
+		// process
+		process[res.type](json, queue)
+	}
+}
+
+
+importRules.dependsOn(deleteRules)

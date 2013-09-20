@@ -1,0 +1,12 @@
+apply plugin: 'java'
+
+// IDE support
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+
+group = 'io.jdev.address'
+// time based
+version = new Date().format('yyyyMMdd', TimeZone.getTimeZone('UTC'))
+
+apply from: "import.gradle"
+apply from: "pom.gradle"
