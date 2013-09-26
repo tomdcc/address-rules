@@ -11,20 +11,38 @@ buildscript {
 String basePath = 'http://i18napis.appspot.com/address/'
 def rulesBaseDir = new File(sourceSets.main.resources.srcDirs.asList()[0], 'io/jdev/address/rules')
 
-def saveJsonAsProperties = {path, json ->
+def readCurrentProps = { File file ->
+	Properties props = new Properties()
+	if(file.file) {
+		FileInputStream stream = null
+		try {
+			stream = new FileInputStream(file)
+			props.load(stream)
+		} finally {
+			stream?.close()
+		}
+	}
+	props
+}
+
+def saveJsonAsProperties = { path, json ->
 	Properties props = new Properties()
 	props.putAll(json)
 
 	def fileBase = !path ? 'index' : (path.contains('/') ? path : "$path/index")
 	def file = new File(rulesBaseDir, "${fileBase}.properties")
-	file.parentFile.mkdirs()
-	FileOutputStream os = new FileOutputStream(file)
-	try {
-		props.store(os, null)
-	} finally {
-		os.close()
-	}
 
+	def currentProps = readCurrentProps(file)
+	if(currentProps != props) {
+		println "  updating $path"
+		file.parentFile.mkdirs()
+		FileOutputStream os = new FileOutputStream(file)
+		try {
+			props.store(os, null)
+		} finally {
+			os.close()
+		}
+	}
 }
 
 def process = [
@@ -67,6 +85,3 @@ task importRules << {
 		process[res.type](json, queue)
 	}
 }
-
-
-importRules.dependsOn(deleteRules)
