@@ -17,6 +17,11 @@ ext {
 	isSnapshot = version.endsWith("-SNAPSHOT")
 }
 
+signing {
+	sign configurations.archives
+	required { !isSnapshot && gradle.taskGraph.hasTask(uploadArchives) }
+}
+
 tasks.withType(Upload) {
 	repositories.withType(org.gradle.api.artifacts.maven.MavenResolver) {
 		poms << it.pom
